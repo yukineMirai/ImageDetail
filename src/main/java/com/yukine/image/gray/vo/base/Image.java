@@ -25,10 +25,12 @@ public abstract class Image {
 
 
     public Image(String path) throws IOException {
-        File file = new File(path);
-        bufferedImage = ImageIO.read(file);
-        init();
+        this(new File(path));
     };
+
+    public Image(File file) throws IOException {
+        this(ImageIO.read(file));
+    }
 
     public Image(BufferedImage bufferedImage){
         this.bufferedImage = bufferedImage;

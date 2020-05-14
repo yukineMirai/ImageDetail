@@ -1,12 +1,18 @@
 package com.yukine.image.gray.vo;
 
+import com.yukine.image.entity.GrayScope;
 import com.yukine.image.gray.vo.base.Image;
+import com.yukine.image.utils.ArrayUtils;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 
 @Data
+@EqualsAndHashCode(callSuper=false)
 public class GrayImage extends Image {
 
 
@@ -23,6 +29,8 @@ public class GrayImage extends Image {
      */
     int[][] grayArray;
 
+    int[][] transGrayArray;
+
     Integer maxGray = 0;
 
     Integer minGray = 255;
@@ -31,8 +39,11 @@ public class GrayImage extends Image {
 
 
     public GrayImage(String path) throws IOException {
-        super(path);
-        init();
+        this(new File(path));
+    }
+
+    public GrayImage(File file) throws IOException {
+        this(ImageIO.read(file));
     }
 
     public GrayImage(BufferedImage image){
@@ -49,61 +60,102 @@ public class GrayImage extends Image {
     }
 
     public BufferedImage transGray(int type){
-        return transGray(type,minGray,maxGray);
+        return transGray(type,null,null);
     }
 
-    public BufferedImage transGray(int start ,int end){
-        return transGray(CUSTOMIZE_TYPE,start,end);
+    public BufferedImage transGray(GrayScope transGrayScope){
+
+        return transGray(CUSTOMIZE_TYPE,null,transGrayScope);
     }
 
-    private BufferedImage transGray(int type,int start,int end){
+    public BufferedImage transGray(GrayScope selectGrayScope,GrayScope transGrayScope){
 
-        if (type==STANDARD_TYPE){
-            linearTrans(STANDARD[0],STANDARD[1]);
-        }else if (type== CUSTOMIZE_TYPE){
-            linearTrans(start,end);
-        }
+        return transGray(CUSTOMIZE_TYPE,selectGrayScope,transGrayScope);
+    }
+
+    private BufferedImage transGray(int type,GrayScope selectGrayScope,GrayScope transGrayScope){
+
+        boolean isTrans = linearTrans(type,selectGrayScope,transGrayScope);
+
 
         BufferedImage result = new BufferedImage(width,height,bufferedImage.getType());
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
-                int gray = getGray(i,j);
+                int gray = 0;
+                if(isTrans){
+                    gray = getTransGray(i,j);
+                }else {
+                    gray = getGray(i,j);
+                }
                 int newPixel = colorToRGB(255, gray, gray, gray);
                 result.setRGB(i, j, newPixel);
             }
         }
-
         return result;
     }
 
-
-
-
+    /*private BufferedImage transGray(int type,int start,int end,)*/
 
     /**
      * 灰度线性转换
-     * @param transA 灰度范围
-     * @param transB
+     * @param type
+     * @return
      */
-    public void linearTrans(int transA,int transB){
+    private boolean linearTrans(int type,GrayScope selectGrayScope,GrayScope transGrayScope){
 
-        if (transA<0 || transB <0){
-            throw new RuntimeException("灰度范围不能小于0");
+        boolean isTrans = true;
+
+        if (type==STANDARD_TYPE){
+            linearTrans(selectGrayScope,new GrayScope(STANDARD[0],STANDARD[1]));
+        }else if (type== CUSTOMIZE_TYPE){
+            linearTrans(selectGrayScope,transGrayScope);
+        }else {
+            isTrans =false;
         }
 
-        if (transA>255|| transB > 255){
-            throw new RuntimeException("灰度范围不能大于255");
+        return isTrans;
+
+
+    }
+
+
+    private void linearTrans(GrayScope selectGrayScope,GrayScope transGrayScope){
+
+        if (selectGrayScope == null){
+            selectGrayScope = new GrayScope(minGray,maxGray);
         }
 
-        if (transB < transA){
-            throw new RuntimeException("灰度范围B不能大于A");
+        System.out.println("范围：" + selectGrayScope.toString() + "  TO  " + transGrayScope.toString());
+
+
+        if(transGrayArray == null){
+            transGrayArray = ArrayUtils.copy(grayArray,width,height);
         }
 
         for(int i=0; i< width;i++){
             for(int j = 0; j< height; j++){
                 int gray = getGray(i,j);
-                grayArray[i][j] = transA + (int)((Double.valueOf((transB - transA)+"")
-                        /(maxGray- minGray)*(gray - minGray)));
+
+                int tranGray = 0;
+                if (gray < selectGrayScope.getStart()){
+                    if (selectGrayScope.getStart() != 0){
+                        tranGray = (transGrayScope.getStart()/selectGrayScope.getStart()) *gray;
+                    }
+                }else if(gray <= selectGrayScope.getEnd()){
+                    tranGray = transGrayScope.getStart() + (int)((Double.valueOf((transGrayScope.getEnd() - transGrayScope.getStart())+"")
+                            /(selectGrayScope.getEnd()- selectGrayScope.getStart())*(gray - selectGrayScope.getStart())));
+                }else {
+                    if (maxGray == selectGrayScope.getEnd()){
+                        tranGray = transGrayScope.getEnd();
+                    }else {
+                        tranGray = (maxGray - transGrayScope.getEnd())/(maxGray -selectGrayScope.getEnd()) *
+                                (gray - selectGrayScope.getEnd()) + transGrayScope.getEnd();
+
+                    }
+                }
+
+                transGrayArray[i][j] = tranGray;
+
             }
         }
 
@@ -114,6 +166,13 @@ public class GrayImage extends Image {
             return 0;
         }
         return grayArray[i][j];
+    }
+
+    public int getTransGray(int i,int j){
+        if (transGrayArray == null){
+            return 0;
+        }
+        return transGrayArray[i][j];
     }
 
     /**
