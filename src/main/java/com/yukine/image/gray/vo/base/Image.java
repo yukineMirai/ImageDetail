@@ -43,7 +43,7 @@ public abstract class Image {
     }
 
 
-    protected  int colorToRGB(int alpha, int red , int green, int blue){
+    public int colorToRGB(int alpha, int red, int green, int blue){
         int newPixel = 0;
         newPixel += alpha;
         newPixel = newPixel << 8;
